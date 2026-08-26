@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>人行现金交款单 A4纵向套打</title>
+<style>
+*{box-sizing:border-box;font-family:"SimSun",宋体;margin:0;padding:0;}
+body{padding:12px;background:#f2f2f2;}
+.box{background:#fff;padding:12px;border-radius:4px;margin-bottom:12px;max-width:920px;}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0;align-items:center;}
+label{width:95px;}
+input,textarea{font-size:10pt;padding:3px;border:1px solid #aaa;}
+button{padding:6px 12px;background:#255499;color:#fff;border:none;border-radius:3px;cursor:pointer;margin:2px;}
+.btn-clear{background:#bb3333;}
+.author-info{font-size:8pt;color:#666;text-align:right;margin-top:8px;user-select:none;pointer-events:none;}
+
+@media print{
+  @page {
+    size:A4 portrait;
+    margin:0mm !important;
+  }
+  .box{display:none !important;}
+  .author-info{display:none !important;}
+  .print-area{display:block !important;width:210mm;height:297mm;overflow:hidden;}
+}
+.print-area{display:none;position:relative;width:210mm;height:297mm;background:#fff;}
+.item{position:absolute;white-space:pre-line;line-height:7.0mm;}
+.align-right{text-align:right;}
+</style>
+</head>
+<body>
+<div class="box">
+<h3>人行现金交款单｜A4纵向套打（券别金额错位修复版）</h3>
+<p>⚠️纸张A4纵向，缩放100%，关闭适应边框；pageOffsetX/Y：票据左上角相对于A4纸左上角的毫米；ox/oy整体微调</p >
+<div class="row">
+<label>交款单位</label>
+<input id="unit" style="width:280px" placeholder="交款单位名称">
+</div>
+<div class="row">
+<label>摘要</label>
+<input id="remark" style="width:280px" placeholder="上款已如数交存">
+</div>
+<div class="row">
+<label>年</label>
+<input id="y" style="width:55px" placeholder="2026">
+<label>月</label>
+<input id="m" style="width:38px" placeholder="08">
+<label>日</label>
+<input id="d" style="width:38px" placeholder="25">
+</div>
+<div class="row">
+<label>券别（最多9行）</label>
+<textarea id="types" rows="9" style="width:140px">100元
+50元
+20元
+10元
+5元
+1元
+
+
+
+</textarea>
+<label>对应金额（最多9行）</label>
+<textarea id="moneys" rows="9" style="width:140px">0.00
+0.00
+0.00
+0.00
+0.00
+0.00
+
+
+
+</textarea>
+</div>
+<div class="row">
+<label>合计小写</label><input id="total" readonly>
+<label>大写金额</label><input id="upper" style="width:300px" readonly>
+</div>
+<div class="row">
+<label>票据左偏移pageOffsetX(mm)</label>
+<input id="pageOffsetX" type="number" value="15" style="width:60px">
+<label>票据上偏移pageOffsetY(mm)</label>
+<input id="pageOffsetY" type="number" value="20" style="width:60px">
+<label>X整体微调ox(mm)</label>
+<input id="ox" type="number" value="0" style="width:60px">
+<label>Y整体微调oy(mm)</label>
+<input id="oy" type="number" value="0" style="width:60px">
+<label>套打字号(pt)</label>
+<input id="fontSize" type="number" value="10" style="width:60px">
+</div>
+<div>
+<button onclick="calc()">计算合计&大写</button>
+<button onclick="window.print()">打印套打内容</button>
+<button onclick="save()">保存参数</button>
+<button class="btn-clear" onclick="clearAll()">一键清空</button>
+</div>
+<div class="author-info">作者：姬锦涛</div>
+</div>
+
+<div class="print-area" id="prt">
+<div class="item" id="p_unit"></div>
+<div class="item" id="p_remark"></div>
+<div class="item" id="p_y"></div>
+<div class="item" id="p_m"></div>
+<div class="item" id="p_d"></div>
+<div class="item" id="p_types"></div>
+<div class="item" id="p_moneys" class="align-right"></div>
+<div class="item" id="p_sum" class="align-right"></div>
+<div class="item" id="p_upper"></div>
+</div>
+
+<script>
+const pos = {
+  unit:   {left:65,  top:30},
+  remark: {left:56,  top:42},
+  year:   {left:108, top:30},
+  month:  {left:120, top:30},
+  day:    {left:130, top:30},
+  types:  {left:125, top:49},
+  moneys: {left:175, top:49},
+  sum:    {left:156, top:112},
+  upper:  {left:69,  top:118}
+};
+
+function clearAll(){
+    document.getElementById('unit').value = '';
+    document.getElementById('remark').value = '';
+    document.getElementById('y').value = '';
+    document.getElementById('m').value = '';
+    document.getElementById('d').value = '';
+    document.getElementById('types').value = '100元\n50元\n20元\n10元\n5元\n1元\n\n\n';
+    document.getElementById('moneys').value = '0.00\n0.00\n0.00\n0.00\n0.00\n0.00\n\n\n';
+    document.getElementById('total').value = '';
+    document.getElementById('upper').value = '';
+    localStorage.removeItem("cash_a4_portrait");
+    calc();
+}
+
+function numToChinese(money) {
+    if (isNaN(money) || money <= 0) return "";
+    const digits = ['零','壹','贰','叁','肆','伍','陆','柒','捌','玖'];
+    let totalCents = Math.round(money * 100);
+    let fen = totalCents % 10;
+    let jiao = Math.floor(totalCents / 10) % 10;
+    let yuan = Math.floor(totalCents / 100);
+    if(yuan===0){
+        let s="";
+        if(jiao>0) s+=digits[jiao]+"角";
+        if(fen>0) s+=digits[fen]+"分";
+        return s;
+    }
+    let yi = Math.floor(yuan / 100000000);
+    let wan = Math.floor((yuan % 100000000)/10000);
+    let rest = yuan % 10000;
+    function fourDigit(n){
+        if(n===0) return "";
+        let s="";
+        let q=Math.floor(n/1000);
+        let b=Math.floor((n%1000)/100);
+        let sh=Math.floor((n%100)/10);
+        let g=n%10;
+        if(q>0)s+=digits[q]+"仟";
+        if(b>0)s+=digits[b]+"佰";
+        if(sh>0){
+            if(q>0&&b===0)s+="零";
+            s+=digits[sh]+"拾";
+        }
+        if(g>0){
+            if((q>0||b>0||sh>0)&&sh===0)s+="零";
+            s+=digits[g];
+        }
+        return s;
+    }
+    let r="";
+    if(yi>0) r+=fourDigit(yi)+"亿";
+    if(wan>0){
+        if(yi>0&&wan<1000)r+="零";
+        r+=fourDigit(wan)+"万";
+    }
+    if(rest>0){
+        if((yi>0||wan>0)&&rest<1000)r+="零";
+        r+=fourDigit(rest);
+    }
+    r+="元";
+    if(jiao===0&&fen===0){
+        r+="整";
+    }else{
+        if(jiao>0) r+=digits[jiao]+"角";
+        if(jiao===0 && fen>0) r+="零";
+        if(fen>0) r+=digits[fen]+"分";
+    }
+    while(r.startsWith("零")) r=r.substring(1);
+    return r;
+}
+
+function formatMoney(num){
+    num = Number(num).toFixed(2);
+    let arr = num.split('.');
+    let intPart = arr[0];
+    let decPart = arr[1];
+    intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g,",");
+    return intPart + '.' + decPart;
+}
+
+function calc(){
+    // 分别读取券别和金额，彻底分开处理
+    const typesText = document.getElementById("types").value;
+    const moneyText = document.getElementById("moneys").value;
+    const typesLines = typesText.split('\n').slice(0,9);
+    const moneyLines = moneyText.split('\n').slice(0,9);
+
+    let sum = 0;
+    let fmtMoneyLines = [];
+    for(let line of moneyLines){
+        let val = parseFloat(line.trim()) || 0;
+        sum += val;
+        fmtMoneyLines.push(formatMoney(val));
+    }
+
+    const fmtSum = formatMoney(sum);
+    document.getElementById("total").value = fmtSum;
+    document.getElementById("upper").value = numToChinese(sum);
+
+    // 券别保留原始文字，金额单独格式化
+    document.getElementById("p_types").innerText = typesLines.join('\n');
+    document.getElementById("p_moneys").innerText = fmtMoneyLines.join('\n');
+    render();
+}
+
+function render(){
+  const pageOffsetX = Number(document.getElementById("pageOffsetX").value)||0;
+  const pageOffsetY = Number(document.getElementById("pageOffsetY").value)||0;
+  const ox = Number(document.getElementById("ox").value)||0;
+  const oy = Number(document.getElementById("oy").value)||0;
+  const fontSize = Number(document.getElementById("fontSize").value)||10;
+
+  function setPos(elId,baseLeft,baseTop){
+    const el = document.getElementById(elId);
+    el.style.left = (pageOffsetX + baseLeft + ox)+"mm";
+    el.style.top  = (pageOffsetY + baseTop + oy)+"mm";
+    el.style.fontSize = fontSize + "pt";
+  }
+
+  setPos("p_unit", pos.unit.left, pos.unit.top);
+  document.getElementById("p_unit").innerText = document.getElementById("unit").value;
+
+  setPos("p_remark", pos.remark.left, pos.remark.top);
+  document.getElementById("p_remark").innerText = document.getElementById("remark").value;
+
+  setPos("p_y", pos.year.left, pos.year.top);
+  document.getElementById("p_y").innerText = document.getElementById("y").value;
+
+  setPos("p_m", pos.month.left, pos.month.top);
+  document.getElementById("p_m").innerText = document.getElementById("m").value;
+
+  setPos("p_d", pos.day.left, pos.day.top);
+  document.getElementById("p_d").innerText = document.getElementById("d").value;
+
+  setPos("p_types", pos.types.left, pos.types.top);
+  setPos("p_moneys", pos.moneys.left, pos.moneys.top);
+  setPos("p_sum", pos.sum.left, pos.sum.top);
+  document.getElementById("p_sum").innerText = document.getElementById("total").value;
+
+  setPos("p_upper", pos.upper.left, pos.upper.top);
+  document.getElementById("p_upper").innerText = document.getElementById("upper").value;
+}
+
+function save(){
+  const data = {
+    unit:document.getElementById('unit').value,
+    remark:document.getElementById('remark').value,
+    y:document.getElementById('y').value,
+    m:document.getElementById('m').value,
+    d:document.getElementById('d').value,
+    types:document.getElementById('types').value,
+    moneys:document.getElementById('moneys').value,
+    pageOffsetX:document.getElementById('pageOffsetX').value,
+    pageOffsetY:document.getElementById('pageOffsetY').value,
+    ox:document.getElementById('ox').value,
+    oy:document.getElementById('oy').value,
+    fontSize:document.getElementById('fontSize').value
+  };
+  localStorage.setItem("cash_a4_portrait",JSON.stringify(data));
+  alert("✅参数已本地保存");
+}
+
+window.onload=function(){
+  const ls = localStorage.getItem("cash_a4_portrait");
+  if(ls){
+    let o = JSON.parse(ls);
+    document.getElementById('unit').value=o.unit||"";
+    document.getElementById('remark').value=o.remark||"";
+    document.getElementById('y').value=o.y||"";
+    document.getElementById('m').value=o.m||"";
+    document.getElementById('d').value=o.d||"";
+    document.getElementById('types').value=o.types||"";
+    document.getElementById('moneys').value=o.moneys||"";
+    document.getElementById('pageOffsetX').value=o.pageOffsetX||15;
+    document.getElementById('pageOffsetY').value=o.pageOffsetY||20;
+    document.getElementById('ox').value=o.ox||0;
+    document.getElementById('oy').value=o.oy||0;
+    document.getElementById('fontSize').value=o.fontSize||10;
+  }
+  calc();
+};
+//所有输入框实时触发计算
+document.querySelectorAll("input,textarea").forEach(el=>{
+  el.addEventListener("input",calc);
+});
+</script>
+</body>
+</html>
